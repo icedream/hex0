@@ -12,6 +12,7 @@ TINYGO_BIN_ARCHIVE_URL=https://github.com/tinygo-org/tinygo/releases/download/v$
 SHA512SUM=sha512sum
 TINYGO_SHA512_CHECKSUM=7b9d19f2a548bc51b01855d531f9c00dfaa1cd036a9e20d3b77702d98e80bc7e9025f9642d9e0e5542068ae8fb12fd67fbdd5f5baa31fe3e6cf58e58a74f9efa
 
+.PHONY: all
 all: hex0d hex0
 
 hex0d: $(wildcard ./cmd/hex0/*.go) $(GO)
