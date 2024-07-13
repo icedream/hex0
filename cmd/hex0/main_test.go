@@ -14,28 +14,28 @@ import (
 func TestDecodeNibble(t *testing.T) {
 	for _, test_ := range []struct {
 		Name        string
-		Inputs      []rune
+		Inputs      []byte
 		Outputs     []byte
 		ExpectNotOK bool
 	}{
 		{
 			Name:    "Numbers",
-			Inputs:  []rune("0123456789"),
+			Inputs:  []byte("0123456789"),
 			Outputs: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
 		},
 		{
 			Name:    "Lowercase",
-			Inputs:  []rune("abcdef"),
+			Inputs:  []byte("abcdef"),
 			Outputs: []byte{10, 11, 12, 13, 14, 15},
 		},
 		{
 			Name:    "Uppercase",
-			Inputs:  []rune("ABCDEF"),
+			Inputs:  []byte("ABCDEF"),
 			Outputs: []byte{10, 11, 12, 13, 14, 15},
 		},
 		{
 			Name:        "Invalid",
-			Inputs:      []rune(" _%$ⓢ"),
+			Inputs:      []byte(" _%$ⓢ"),
 			ExpectNotOK: true,
 		},
 	} {
@@ -47,7 +47,6 @@ func TestDecodeNibble(t *testing.T) {
 				expectedOutputByte = test.Outputs[i]
 			}
 			t.Run(test.Name+"/"+string(c), func(t *testing.T) {
-				t.Parallel()
 				result, ok := decodeNibble(character)
 				if test.ExpectNotOK && ok {
 					t.Errorf("unexpected success: %X", result)

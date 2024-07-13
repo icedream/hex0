@@ -21,7 +21,7 @@ To just build the optimized hex0 binary, run `make hex0`.
 Of course, the above can also be done by hand, just read into the `Makefile` for
 that.
 
-The resulting `hex0` binary will be 66520 bytes in size.
+The resulting `hex0` binary will be 57944 bytes in size.
 
 ## Usage
 

@@ -4,11 +4,10 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
 	"errors"
 	"io"
 	"os"
-	"slices"
 )
 
 /*
@@ -16,24 +15,21 @@ minimal set of hex support
 */
 
 var (
-	hexUpper = []rune("0123456789abcdef")
-	hexLower = []rune("0123456789ABCDEF")
+	hexLower = []byte("0123456789abcdef")
+	hexUpper = []byte("ABCDEF")
 )
 
-func decodeNibble(c rune) (byte, bool) {
-	v := slices.Index(hexUpper, c)
+func decodeNibble(c byte) (byte, bool) {
+	v := bytes.IndexByte(hexLower, c)
+	var vo byte
 	if v < 0 {
-		v = slices.Index(hexLower, c)
+		v = bytes.IndexByte(hexUpper, c)
+		vo = 0xA
 	}
 	if v < 0 {
 		return 0, false
 	}
-	return byte(v), true
-}
-
-type textReader interface {
-	io.RuneReader
-	ReadString(delim byte) (s string, err error)
+	return byte(v) + vo, true
 }
 
 /*
@@ -46,12 +42,12 @@ const (
 	tokenLineBreak        = '\n'
 )
 
-func decodeByte(r textReader) (byte, error) {
+func decodeByte(r io.ByteReader) (byte, error) {
 	var digitIndex byte
 	var b byte
 	for {
 		// TODO - handle encoding error (sz=1 with 0xFFFD)?
-		c, sz, err := r.ReadRune()
+		rb, err := r.ReadByte()
 		if err != nil {
 			// Is this actually the end of the file?
 			if errors.Is(err, io.EOF) {
@@ -63,20 +59,27 @@ func decodeByte(r textReader) (byte, error) {
 			}
 			return 0, err
 		}
-		if sz != 1 {
-			// We only work with ASCII here really, everything else is safe to
-			// assume not to be part of hex0/boot0 syntax.
+		if rb&0b10000000 != 0 {
+			// UTF-8 multibyte.
+			//
+			// This ain't going to be hex, so skip all of it.
 			continue
 		}
-		if c == tokenCommentSemicolon || c == tokenCommentHash {
+		if rb == tokenCommentSemicolon || rb == tokenCommentHash {
 			// Read comment line until line end
-			_, err := r.ReadString(tokenLineBreak)
-			if err != nil {
-				return 0, err
+			for {
+				rb, err = r.ReadByte()
+				if err != nil {
+					return 0, err
+				}
+				if rb == tokenLineBreak {
+					// End of line = end of comment
+					break
+				}
 			}
 			continue
 		}
-		nbl, ok := decodeNibble(c)
+		nbl, ok := decodeNibble(rb)
 		if !ok {
 			// We got some non-nibble character, ignore
 			continue
@@ -95,11 +98,10 @@ func decodeByte(r textReader) (byte, error) {
 	}
 }
 
-func compile(r io.Reader, w io.ByteWriter) error {
-	br := bufio.NewReader(r)
+func compile(r io.ByteReader, w io.Writer) error {
 	for {
 		// TODO - handle encoding error (sz=1 with 0xFFFD)?
-		b, err := decodeByte(br)
+		b, err := decodeByte(r)
 		if err != nil {
 			// Is this actually the end of the file?
 			if errors.Is(err, io.EOF) {
@@ -108,11 +110,24 @@ func compile(r io.Reader, w io.ByteWriter) error {
 			// Some other error occurred
 			return err
 		}
-		if err := w.WriteByte(b); err != nil {
+		if _, err := w.Write([]byte{b}); err != nil {
 			return err
 		}
 	}
 }
+
+type byteReaderWrapper struct {
+	r io.Reader
+	b [1]byte
+}
+
+// ReadByte implements io.ByteReader.
+func (b *byteReaderWrapper) ReadByte() (byte, error) {
+	_, err := b.r.Read(b.b[:])
+	return b.b[0], err
+}
+
+var _ io.ByteReader = (*byteReaderWrapper)(nil)
 
 func run() error {
 	var in io.Reader = os.Stdin
@@ -146,11 +161,9 @@ func run() error {
 		out = f
 	}
 
-	// allow efficiently writing individual bytes
-	outByteWriter := bufio.NewWriter(out)
-	defer outByteWriter.Flush()
+	inbr := &byteReaderWrapper{r: in}
 
-	return compile(in, outByteWriter)
+	return compile(inbr, out)
 }
 
 func main() {
